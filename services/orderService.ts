@@ -67,6 +67,101 @@ export interface CreateOrderDTO {
 }
 
 export class OrderService {
+
+  // Get all orders for a user with pagination
+  static async getUserOrders(
+    userId: string, 
+    options?: {
+      status?: string;
+      limit?: number;
+      offset?: number;
+      sortBy?: string;
+      sortOrder?: 'asc' | 'desc';
+    }
+  ): Promise<{ orders: Order[]; total: number }> {
+    const {
+      status,
+      limit = 10,
+      offset = 0,
+      sortBy = 'created_at',
+      sortOrder = 'desc'
+    } = options || {};
+
+    try {
+      // Build the query
+      let query = supabase
+        .from('orders')
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId);
+
+      // Apply status filter if provided
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      // Apply sorting
+      query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+
+      // Apply pagination
+      query = query.range(offset, offset + limit - 1);
+
+      // Execute query
+      const { data: orders, error, count } = await query;
+
+      if (error) {
+        console.error('Error fetching user orders:', error);
+        throw new Error(error.message);
+      }
+
+      if (!orders || orders.length === 0) {
+        return { orders: [], total: count || 0 };
+      }
+
+      // Get order items for each order
+      const orderIds = orders.map(order => order.id);
+      const { data: orderItems, error: itemsError } = await supabase
+        .from('order_items')
+        .select('*')
+        .in('order_id', orderIds);
+
+      if (itemsError) {
+        console.error('Error fetching order items:', itemsError);
+        // Continue with empty items rather than failing
+      }
+
+      // Get status history for each order
+      const { data: statusHistory, error: historyError } = await supabase
+        .from('order_status_history')
+        .select('*')
+        .in('order_id', orderIds)
+        .order('created_at', { ascending: true });
+
+      if (historyError) {
+        console.error('Error fetching status history:', historyError);
+      }
+
+      // Map items and history to orders
+      const ordersWithDetails = orders.map(order => {
+        const items = orderItems?.filter(item => item.order_id === order.id) || [];
+        const history = statusHistory?.filter(h => h.order_id === order.id) || [];
+
+        return {
+          ...order,
+          items: items,
+          status_history: history
+        } as Order;
+      });
+
+      return {
+        orders: ordersWithDetails,
+        total: count || 0
+      };
+    } catch (error) {
+      console.error('Error in getUserOrders:', error);
+      throw error;
+    }
+  }
+
   // Create new order with items
   static async createOrder(userId: string, data: CreateOrderDTO): Promise<Order> {
     // Get cart items with product details
@@ -560,27 +655,48 @@ export class OrderService {
     }
   }
 
-  // Update payment status
-  static async updatePaymentStatus(
-    orderId: string, 
-    paymentStatus: Order['payment_status']
-  ): Promise<Order> {
-    const { data: order, error } = await supabase
+// payment status
+// services/orderService.ts
+
+// Update payment status - FIXED
+static async updatePaymentStatus(
+  orderId: string, 
+  paymentStatus: Order['payment_status']
+): Promise<Order> {
+  try {
+    // First, check if the order exists
+    const { data: existingOrder, error: checkError } = await supabase
+      .from('orders')
+      .select('id')
+      .eq('id', orderId)
+      .single();
+
+    if (checkError) {
+      console.error('Order not found:', checkError);
+      throw new Error(`Order with ID ${orderId} not found`);
+    }
+
+    // Perform the update without .single()
+    const { error: updateError } = await supabase
       .from('orders')
       .update({ 
         payment_status: paymentStatus,
         updated_at: new Date().toISOString()
       })
-      .eq('id', orderId)
-      .select()
-      .single();
+      .eq('id', orderId);
 
-    if (error) {
-      throw new Error(error.message);
+    if (updateError) {
+      console.error('Error updating payment status:', updateError);
+      throw new Error(updateError.message);
     }
 
-    return this.getOrderById(orderId);
+    // Fetch the updated order using getOrderById
+    return await this.getOrderById(orderId);
+  } catch (error) {
+    console.error('Error in updatePaymentStatus:', error);
+    throw error;
   }
+}
 
   // Cancel order
   static async cancelOrder(orderId: string, userId?: string): Promise<Order> {

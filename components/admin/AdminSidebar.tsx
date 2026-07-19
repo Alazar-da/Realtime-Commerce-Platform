@@ -23,6 +23,9 @@ import {
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
+import {CategoryService} from "@/services/categoryService";
+import {SubCategoryService} from "@/services/subCategoryService";
+import {ProductService} from "@/services/productService";
 import { cn } from "@/lib/utils";
 import {
   Tooltip,
@@ -45,23 +48,7 @@ interface AdminSidebarProps {
   onNavigate?: () => void;  // close mobile on nav
 }
 
-const mainItems: MenuItem[] = [
-  { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
-  { name: "Categories", href: "/admin/categories", icon: Grid3X3 },
-  { name: "Sub Categories", href: "/admin/sub-categories", icon: Layers },
-  { name: "Products", href: "/admin/products", icon: Package, badge: "24" },
-  {name:"Inventory", href:"/admin/inventory",icon:Warehouse},
-  { name: "Orders", href: "/admin/orders", icon: ShoppingBag, badge: "12" },
-  {name:"Sales", href:"/admin/sales", icon:Store},
-  { name: "Users", href: "/users", icon: Users },
-  { name: "Reports", href: "/admin/reports", icon: BarChart3 },
-];
 
-const accountItems: MenuItem[] = [
-  { name: "Profile", href: "/profile", icon: UserCircle },
-  { name: "Settings", href: "/settings", icon: Settings },
-  { name: "Help", href: "/help", icon: HelpCircle },
-];
 
 export default function AdminSidebar({
   isOpen,
@@ -72,7 +59,32 @@ export default function AdminSidebar({
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<any>(null);
+  const [categoryCount,setCategoryCount]=useState<string>();
+  const [subCategoryCount,setSubCategoryCount]=useState<string>();
+  const [productCount,setProductCount]=useState<string>();
+
   const supabase = createClient();
+  const {getCategoryCount}=CategoryService;
+  const {getSubCategoryCount}=SubCategoryService;
+  const {getProductCount}=ProductService;
+
+  const mainItems: MenuItem[] = [
+  { name: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
+  { name: "Categories", href: "/admin/categories", icon: Grid3X3, badge:categoryCount },
+  { name: "Sub Categories", href: "/admin/sub-categories", icon: Layers, badge:subCategoryCount },
+  { name: "Products", href: "/admin/products", icon: Package, badge: productCount },
+  {name:"Inventory", href:"/admin/inventory",icon:Warehouse},
+  { name: "Orders", href: "/admin/orders", icon: ShoppingBag, badge: "12" },
+  {name:"Sales", href:"/admin/sales", icon:Store},
+  { name: "Users", href: "/admin/users", icon: Users },
+  { name: "Reports", href: "/admin/reports", icon: BarChart3 },
+];
+
+const accountItems: MenuItem[] = [
+  { name: "Profile", href: "/profile", icon: UserCircle },
+  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Help", href: "/help", icon: HelpCircle },
+];
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -81,6 +93,33 @@ export default function AdminSidebar({
     };
     fetchUser();
   }, []);
+
+
+      useEffect(() => {
+
+      const fetchCategoryCount = async () => {
+        const categoryCount = await getCategoryCount(); 
+        setCategoryCount(categoryCount.toString())
+      };
+
+
+    const fetchSubCategoryCount = async () => {
+      const subCategoryCount = await getSubCategoryCount(); 
+      setSubCategoryCount(subCategoryCount.toString())
+    };
+
+
+    const fetchProductCount = async () => {
+      const productCount = await getProductCount(); 
+      setProductCount(productCount.toString())
+    };
+    
+    fetchProductCount();
+    fetchCategoryCount();
+    fetchSubCategoryCount();
+  }, []);
+
+
 
   // Close mobile on route change
   useEffect(() => {

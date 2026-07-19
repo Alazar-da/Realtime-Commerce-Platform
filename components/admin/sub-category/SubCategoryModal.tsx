@@ -332,7 +332,7 @@ export function SubCategoryModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Category Selection */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="category">Category *</Label>
             <Select 
               value={categoryId} 
@@ -353,7 +353,7 @@ export function SubCategoryModal({
           </div>
 
           {/* Image Upload */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label>Image</Label>
             <div className="mt-1">
               {imagePreview ? (
@@ -402,7 +402,7 @@ export function SubCategoryModal({
           </div>
 
           {/* Name */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="name">Name *</Label>
             <Input
               id="name"
@@ -415,7 +415,7 @@ export function SubCategoryModal({
           </div>
 
           {/* Slug */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="slug">Slug *</Label>
             <div className="relative">
               <Input
@@ -467,7 +467,7 @@ export function SubCategoryModal({
           </div>
 
           {/* Description */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
@@ -480,7 +480,7 @@ export function SubCategoryModal({
           </div>
 
           {/* Status */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="status">Status</Label>
             <Select 
               value={status} 

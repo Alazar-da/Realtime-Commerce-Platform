@@ -94,13 +94,13 @@ export function CustomerNavbar() {
             <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-white font-bold text-sm">RC</span>
             </div>
-            <span className="font-bold text-lg hidden sm:inline-block">
+            <span className="font-bold text-lg hidden md:inline-block">
               Realtime Commerce
             </span>
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-6">
+          <nav className="hidden lg:flex items-center gap-6">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               const Icon = link.icon;
@@ -253,7 +253,7 @@ export function CustomerNavbar() {
             <Button
               variant="ghost"
               size="icon"
-              className="md:hidden"
+              className="lg:hidden"
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             >
               {isMobileMenuOpen ? (
@@ -295,7 +295,7 @@ export function CustomerNavbar() {
 
         {/* Mobile Menu */}
         {isMobileMenuOpen && (
-          <div className="md:hidden py-4 border-t space-y-3">
+          <div className="lg:hidden py-4 border-t space-y-3">
             {navLinks.map((link) => {
               const isActive = pathname === link.href;
               const Icon = link.icon;

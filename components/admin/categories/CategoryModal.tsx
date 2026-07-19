@@ -332,7 +332,7 @@ export function CategoryModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Image Upload */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label>Image</Label>
             <div className="mt-1">
               {imagePreview ? (
@@ -381,7 +381,7 @@ export function CategoryModal({
           </div>
 
           {/* Name */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="name">Name *</Label>
             <Input
               id="name"
@@ -394,7 +394,7 @@ export function CategoryModal({
           </div>
 
           {/* Slug */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="slug">Slug *</Label>
             <div className="relative">
               <Input
@@ -447,7 +447,7 @@ export function CategoryModal({
           </div>
 
           {/* Description */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="description">Description</Label>
             <Textarea
               id="description"
@@ -460,7 +460,7 @@ export function CategoryModal({
           </div>
 
           {/* Status */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="status">Status</Label>
             <Select 
               value={status} 

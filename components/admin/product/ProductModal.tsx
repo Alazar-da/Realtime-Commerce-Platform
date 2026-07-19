@@ -546,7 +546,7 @@ export function ProductModal({
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Category & Sub-category */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="category">Category *</Label>
               <Select value={categoryId} onValueChange={setCategoryId}>
                 <SelectTrigger>
@@ -561,7 +561,7 @@ export function ProductModal({
                 </SelectContent>
               </Select>
             </div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="subCategory">Sub-Category</Label>
               <Select value={subCategoryId} onValueChange={setSubCategoryId}>
                 <SelectTrigger>
@@ -580,7 +580,7 @@ export function ProductModal({
           </div>
 
           {/* Name */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="name">Name *</Label>
             <Input
               id="name"
@@ -593,7 +593,7 @@ export function ProductModal({
           </div>
 
           {/* Slug */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="slug">Slug *</Label>
             <div className="relative">
               <Input
@@ -625,7 +625,7 @@ export function ProductModal({
           </div>
 
           {/* SKU */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="sku">SKU *</Label>
             <div className="relative">
               <Input
@@ -658,7 +658,7 @@ export function ProductModal({
 
           {/* Price */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="price">Price *</Label>
               <Input
                 id="price"
@@ -671,7 +671,7 @@ export function ProductModal({
                 required
               />
             </div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="comparePrice">Compare Price</Label>
               <Input
                 id="comparePrice"
@@ -683,7 +683,7 @@ export function ProductModal({
                 disabled={loading || uploadingImage}
               />
             </div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="costPrice">Cost Price</Label>
               <Input
                 id="costPrice"
@@ -699,7 +699,7 @@ export function ProductModal({
 
           {/* Stock */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="stockQuantity">Stock Quantity</Label>
               <Input
                 id="stockQuantity"
@@ -710,8 +710,8 @@ export function ProductModal({
                 disabled={loading || uploadingImage}
               />
             </div>
-            <div>
-              <Label htmlFor="lowStockThreshold">Low Stock Threshold</Label>
+            <div className="flex flex-col gap-1">
+              <Label htmlFor="lowStockThreshold">Low Stock {/* Threshold */}</Label>
               <Input
                 id="lowStockThreshold"
                 type="number"
@@ -721,7 +721,7 @@ export function ProductModal({
                 disabled={loading || uploadingImage}
               />
             </div>
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="stockStatus">Stock Status</Label>
               <Select value={stockStatus} onValueChange={(value: any) => setStockStatus(value)}>
                 <SelectTrigger>
@@ -738,7 +738,7 @@ export function ProductModal({
           </div>
 
           {/* Descriptions */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="shortDescription">Short Description</Label>
             <Textarea
               id="shortDescription"
@@ -750,7 +750,7 @@ export function ProductModal({
             />
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="description">Full Description</Label>
             <Textarea
               id="description"
@@ -763,7 +763,7 @@ export function ProductModal({
           </div>
 
           {/* Images */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label>Main Image</Label>
             <div className="mt-1">
               {imagePreview ? (
@@ -796,7 +796,7 @@ export function ProductModal({
           </div>
 
           {/* Gallery */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label>Gallery Images</Label>
             <label className="flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer hover:border-primary transition-colors p-4">
               <Upload className="h-6 w-6 text-gray-400 mb-1" />
@@ -839,7 +839,7 @@ export function ProductModal({
 
           {/* Status & Features */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="status">Status</Label>
               <Select value={status} onValueChange={(value: any) => setStatus(value)}>
                 <SelectTrigger>
@@ -869,7 +869,7 @@ export function ProductModal({
           </div>
 
           {/* Tags */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label>Tags</Label>
             <div className="flex gap-2">
               <Input
@@ -898,7 +898,7 @@ export function ProductModal({
           </div>
 
           {/* SEO */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="metaTitle">Meta Title</Label>
             <Input
               id="metaTitle"
@@ -909,7 +909,7 @@ export function ProductModal({
             />
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="metaDescription">Meta Description</Label>
             <Textarea
               id="metaDescription"
@@ -921,7 +921,7 @@ export function ProductModal({
             />
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="metaKeywords">Meta Keywords</Label>
             <Input
               id="metaKeywords"

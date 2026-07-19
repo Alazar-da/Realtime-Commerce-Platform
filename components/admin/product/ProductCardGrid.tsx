@@ -136,7 +136,7 @@ export function ProductCardGrid({
                 )}
               </div>
               
-              <div className="flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <div className="flex flex-col gap-1">
                 <Button
                   variant="ghost"
                   size="icon"
@@ -144,7 +144,7 @@ export function ProductCardGrid({
                   className="h-8 w-8"
                 >
                   {product.featured ? (
-                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    <Star className="h-4 w-4 text-yellow-500 fill-yellow-500"/>
                   ) : (
                     <StarOff className="h-4 w-4" />
                   )}

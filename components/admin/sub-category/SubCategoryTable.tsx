@@ -13,7 +13,13 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Edit, Trash2, Eye, EyeOff, ImageIcon, Folder } from "lucide-react";
+import { Edit, Trash2, Eye, EyeOff, ImageIcon, Folder,  AlertTriangle } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +29,7 @@ interface SubCategoryTableProps {
   onSelect: (ids: string[]) => void;
   onEdit: (subCategory: SubCategory) => void;
   onDelete: (id: string) => void;
+  onForceDelete: (id: string) => void;
   onToggleStatus: (id: string) => void;
 }
 
@@ -32,6 +39,7 @@ export function SubCategoryTable({
   onSelect,
   onEdit,
   onDelete,
+  onForceDelete,
   onToggleStatus
 }: SubCategoryTableProps) {
   const handleSelectAll = () => {
@@ -149,14 +157,33 @@ export function SubCategoryTable({
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onDelete(subCategory.id)}
-                    className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                      <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem 
+                      onClick={() => onDelete(subCategory.id)}
+                      className="text-yellow-600"
+                    >
+                      <AlertTriangle className="h-4 w-4 mr-2" />
+                      Check & Delete
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={() => onForceDelete(subCategory.id)}
+                      className="text-red-600"
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Force Delete (All Data)
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
                 </div>
               </TableCell>
             </TableRow>

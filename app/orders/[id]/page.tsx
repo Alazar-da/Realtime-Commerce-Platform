@@ -14,18 +14,34 @@ import {
   Clock,
   ChevronRight,
   Star,
-  MessageSquare
+  CreditCard,
+  Lock,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { OrderService } from "@/services/orderService";
 import { Order } from "@/services/orderService";
 import { ReviewService } from "@/services/reviewService";
+import { StripeService } from "@/services/stripeService";
 import { createClient } from "@/lib/supabase/client";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 
 const statusColors = {
   pending: "bg-yellow-500",
@@ -34,6 +50,196 @@ const statusColors = {
   delivered: "bg-green-500",
   cancelled: "bg-red-500"
 };
+
+// Payment Form Component for Dialog - Fixed
+function PaymentForm({ 
+  onSuccess, 
+  onError,
+  amount,
+  clientSecret,
+  orderId,
+  orderNumber
+}: { 
+  onSuccess: (paymentIntentId: string) => void;
+  onError: (error: string) => void;
+  amount: number;
+  clientSecret: string;
+  orderId: string;
+  orderNumber: string;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle');
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!stripe || !elements) {
+      toast.error('Payment system not ready. Please try again.');
+      return;
+    }
+
+    // Prevent multiple submissions
+    if (loading) {
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+    setPaymentStatus('processing');
+
+    try {
+      // ✅ STEP 1: Call elements.submit() to validate and collect payment details
+      const { error: submitError } = await elements.submit();
+      
+      if (submitError) {
+        console.error('Elements submit error:', submitError);
+        setErrorMessage(submitError.message || "Please check your payment details");
+        onError(submitError.message || "Please check your payment details");
+        setPaymentStatus('failed');
+        setLoading(false);
+        return;
+      }
+
+      // ✅ STEP 2: Create the PaymentIntent and get clientSecret
+      // Note: clientSecret is already passed as a prop, but if you need to create it here:
+      // const res = await fetch("/api/create-payment-intent", {
+      //   method: "POST",
+      //   headers: { "Content-Type": "application/json" },
+      //   body: JSON.stringify({
+      //     amount: Math.round(amount * 100),
+      //     orderId: orderId,
+      //   }),
+      // });
+      // const data = await res.json();
+      // const clientSecret = data.clientSecret;
+
+      // ✅ STEP 3: Confirm the payment using the clientSecret
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        clientSecret,
+        confirmParams: {
+          return_url: `${window.location.origin}/orders/${orderId}`,
+        },
+        redirect: 'if_required',
+      });
+
+      if (error) {
+        console.error('Payment confirmation error:', error);
+        setErrorMessage(error.message || "Payment failed");
+        onError(error.message || "Payment failed");
+        setPaymentStatus('failed');
+        setLoading(false);
+        return;
+      }
+
+      if (paymentIntent?.status === "succeeded") {
+        setPaymentStatus('succeeded');
+        // Update payment status in your backend
+        await OrderService.updatePaymentStatus(orderId, 'paid');
+        await OrderService.updateOrderStatus(orderId, 'processing', 'Payment confirmed, order processing');
+        toast.success('Payment successful! Order is now being processed.');
+        onSuccess(paymentIntent.id);
+      } else if (paymentIntent?.status === "requires_action") {
+        // 3D Secure authentication required - handled by Stripe
+        toast("Additional authentication required. Please follow the prompts.");
+      } else {
+        const msg = `Payment status: ${paymentIntent?.status || 'Unknown'}`;
+        setErrorMessage(msg);
+        onError(msg);
+        setPaymentStatus('failed');
+      }
+    } catch (error) {
+      console.error('Payment exception:', error);
+      const msg = error instanceof Error ? error.message : "Payment failed";
+      setErrorMessage(msg);
+      onError(msg);
+      setPaymentStatus('failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {/* Order Summary */}
+      <div className="bg-muted/30 rounded-lg p-4">
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Order</span>
+          <span className="font-medium">{orderNumber}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-muted-foreground">Amount</span>
+          <span className="font-bold text-primary">${amount.toFixed(2)}</span>
+        </div>
+      </div>
+
+      {/* Error Message */}
+      {errorMessage && (
+        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg flex items-start gap-2">
+          <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+        </div>
+      )}
+
+      {/* Payment Element */}
+      <div className="p-4 border rounded-lg bg-muted/20">
+        <PaymentElement />
+      </div>
+
+      {/* Secure Badge */}
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3" />
+        <span>Your payment is secure and encrypted</span>
+      </div>
+
+      {/* Processing State */}
+      {paymentStatus === 'processing' && (
+        <div className="flex items-center gap-2 text-blue-600">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm">Processing your payment...</span>
+        </div>
+      )}
+
+      {/* Submit Button */}
+      <Button 
+        type="submit" 
+        disabled={!stripe || loading || paymentStatus === 'succeeded'}
+        className="w-full"
+        size="lg"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Processing...
+          </>
+        ) : paymentStatus === 'succeeded' ? (
+          <>
+            <CheckCircle className="h-4 w-4 mr-2" />
+            Paid ✓
+          </>
+        ) : (
+          <>
+            <CreditCard className="h-4 w-4 mr-2" />
+            Pay ${amount.toFixed(2)}
+          </>
+        )}
+      </Button>
+
+      {/* Test Cards Info */}
+      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">🧪 Test Cards</p>
+        <div className="text-xs space-y-0.5 text-blue-600 dark:text-blue-400">
+          <p>✅ Success: 4242 4242 4242 4242</p>
+          <p>🔒 3D Secure: 4000 0025 0000 3155</p>
+          <p className="text-muted-foreground">Expiry: 12/34 • CVC: 123</p>
+        </div>
+      </div>
+    </form>
+  );
+}
 
 export default function CustomerOrderDetailPage() {
   const params = useParams();
@@ -44,6 +250,12 @@ export default function CustomerOrderDetailPage() {
   const [user, setUser] = useState<any>(null);
   const [canReview, setCanReview] = useState<{ [key: string]: boolean }>({});
   const [reviewing, setReviewing] = useState<{ [key: string]: boolean }>({});
+  
+  // Payment state
+  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchOrder();
@@ -100,6 +312,39 @@ export default function CustomerOrderDetailPage() {
     }
   };
 
+  const handlePayNow = async () => {
+    if (!order) return;
+
+    try {
+      setPaymentLoading(true);
+      setPaymentError(null);
+      
+      // Create payment intent
+      const { clientSecret } = await StripeService.createPaymentIntent(order.total);
+      setStripeClientSecret(clientSecret);
+      setPaymentDialogOpen(true);
+    } catch (error) {
+      console.error('Error initializing payment:', error);
+      setPaymentError(error instanceof Error ? error.message : 'Failed to initialize payment');
+      toast.error('Failed to initialize payment');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    setPaymentDialogOpen(false);
+    setStripeClientSecret(null);
+    // Refresh order data
+    await fetchOrder();
+    toast.success('Payment successful! Order is being processed.');
+  };
+
+  const handlePaymentError = (error: string) => {
+    setPaymentError(error);
+    toast.error(error);
+  };
+
   const getStatusBadge = (status: string) => {
     const color = statusColors[status as keyof typeof statusColors] || "bg-gray-500";
     return (
@@ -108,6 +353,8 @@ export default function CustomerOrderDetailPage() {
       </Badge>
     );
   };
+
+  const isPaymentPending = order?.payment_status === 'pending' && order?.status !== 'cancelled';
 
   if (loading) {
     return (
@@ -155,8 +402,44 @@ export default function CustomerOrderDetailPage() {
             Placed on {new Date(order.created_at).toLocaleString()}
           </p>
         </div>
-        {getStatusBadge(order.status)}
+        <div className="flex items-center gap-3">
+          {getStatusBadge(order.status)}
+          {isPaymentPending && (
+            <Button 
+              onClick={handlePayNow} 
+              disabled={paymentLoading}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              {paymentLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CreditCard className="h-4 w-4 mr-2" />
+              )}
+              Pay Now
+            </Button>
+          )}
+        </div>
       </div>
+
+      {/* Payment Error */}
+      {paymentError && (
+        <Card className="mb-6 border-red-200 bg-red-50 dark:bg-red-950/20">
+          <CardContent className="p-4 flex items-center gap-3 text-red-600">
+            <XCircle className="h-5 w-5" />
+            <span>{paymentError}</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Payment Pending Banner */}
+      {isPaymentPending && (
+        <Card className="mb-6 border-yellow-200 bg-yellow-50 dark:bg-yellow-950/20">
+          <CardContent className="p-4 flex items-center gap-3 text-yellow-700 dark:text-yellow-400">
+            <Clock className="h-5 w-5" />
+            <span>Payment pending. Click the "Pay Now" button to complete your payment.</span>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Order Status Timeline */}
       <Card className="mb-6">
@@ -185,7 +468,7 @@ export default function CustomerOrderDetailPage() {
         </CardContent>
       </Card>
 
-      {/* Order Summary */}
+      {/* Order Summary - Keep existing */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
         <Card>
           <CardContent className="p-4">
@@ -240,12 +523,13 @@ export default function CustomerOrderDetailPage() {
         </Card>
       </div>
 
-      {/* Order Items */}
+      {/* Order Items - Keep existing */}
       <h2 className="text-xl font-bold mb-4">Order Items</h2>
       <div className="space-y-4">
         {order.items?.map((item) => (
           <Card key={item.id}>
             <CardContent className="p-4">
+              {/* Item content - keep as is */}
               <div className="flex flex-col sm:flex-row gap-4">
                 <div className="relative w-full sm:w-24 h-24 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                   {item.product_image ? (
@@ -273,43 +557,6 @@ export default function CustomerOrderDetailPage() {
                       <p className="font-bold text-primary">${item.total.toFixed(2)}</p>
                     </div>
                   </div>
-
-                  {/* Review Button for Delivered Orders */}
-                  {order.status === 'delivered' && canReview[item.product_id] && (
-                    <div className="mt-3">
-                      <Button 
-                        variant="outline" 
-                        size="sm"
-                        onClick={() => {
-                          const rating = prompt('Rate this product (1-5 stars):');
-                          if (rating) {
-                            const numRating = parseInt(rating);
-                            if (numRating >= 1 && numRating <= 5) {
-                              const content = prompt('Write your review:');
-                              if (content) {
-                                handleReview(item.product_id, numRating, content);
-                              }
-                            } else {
-                              toast.error('Please enter a rating between 1 and 5');
-                            }
-                          }
-                        }}
-                        disabled={reviewing[item.product_id]}
-                      >
-                        {reviewing[item.product_id] ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary mr-2" />
-                            Submitting...
-                          </>
-                        ) : (
-                          <>
-                            <Star className="h-4 w-4 mr-2" />
-                            Write a Review
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  )}
                 </div>
               </div>
             </CardContent>
@@ -317,17 +564,7 @@ export default function CustomerOrderDetailPage() {
         ))}
       </div>
 
-      {/* Order Notes */}
-      {order.notes && (
-        <Card className="mt-6">
-          <CardContent className="p-4">
-            <h4 className="font-semibold mb-2">Order Notes</h4>
-            <p className="text-sm text-muted-foreground">{order.notes}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Status History */}
+      {/* Status History - Keep existing */}
       {order.status_history && order.status_history.length > 0 && (
         <Card className="mt-6">
           <CardContent className="p-4">
@@ -356,6 +593,56 @@ export default function CustomerOrderDetailPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Payment Dialog */}
+      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CreditCard className="h-5 w-5" />
+              Complete Payment
+            </DialogTitle>
+            <DialogDescription>
+              Pay for order #{order.order_number}
+            </DialogDescription>
+          </DialogHeader>
+
+          {stripeClientSecret && (
+            <Elements 
+              stripe={StripeService.getStripe()} 
+              options={{ 
+                clientSecret: stripeClientSecret,
+                appearance: {
+                  theme: 'stripe',
+                  variables: {
+                    colorPrimary: '#2563eb',
+                  },
+                },
+              }}
+            >
+              <PaymentForm
+                onSuccess={handlePaymentSuccess}
+                onError={handlePaymentError}
+                amount={order.total}
+                clientSecret={stripeClientSecret}
+                orderId={order.id}
+                orderNumber={order.order_number}
+              />
+            </Elements>
+          )}
+
+          <Button 
+            variant="ghost" 
+            className="w-full mt-2"
+            onClick={() => {
+              setPaymentDialogOpen(false);
+              setStripeClientSecret(null);
+            }}
+          >
+            Cancel
+          </Button>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

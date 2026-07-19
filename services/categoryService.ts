@@ -12,7 +12,7 @@ export class CategoryService {
       status = 'all',
       page = 1,
       limit = 10,
-      sortBy = 'created_at',
+      sortBy = 'name',
       sortOrder = 'desc'
     } = filters;
 
@@ -31,7 +31,7 @@ export class CategoryService {
     }
 
     // Apply sorting
-    query = query.order(sortBy, { ascending: sortOrder === 'asc' });
+    query = query.order(sortBy, { ascending: sortOrder === 'desc' });
 
     // Apply pagination
     const from = (page - 1) * limit;
@@ -205,31 +205,122 @@ export class CategoryService {
     return category as Category;
   }
 
-  // Delete category
-  static async deleteCategory(id: string): Promise<void> {
-    // First, get the category to get the image URL
-    const category = await this.getCategoryById(id);
-    
-    // Delete the image from storage if it exists
-    if (category.image_url) {
-      const fileName = category.image_url.split('/').pop();
-      if (fileName) {
-        await supabase.storage
-          .from('categories')
-          .remove([fileName]);
-      }
+// Get category count
+  static async getCategoryCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('categories')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      throw new Error(error.message);
     }
+
+    return count || 0;
+  }
+
+  // Check if category has related products
+  static async getCategoryProductCount(categoryId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', categoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return count || 0;
+  }
+
+  // Check if category has related sub-categories
+  static async getCategorySubCategoryCount(categoryId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('sub_categories')
+      .select('*', { count: 'exact', head: true })
+      .eq('category_id', categoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return count || 0;
+  }
+
+  // Delete category with check
+  static async deleteCategory(categoryId: string): Promise<{ success: boolean; message?: string; relatedCount?: number }> {
+    // Check for related products
+    const productCount = await this.getCategoryProductCount(categoryId);
+    if (productCount > 0) {
+      return {
+        success: false,
+        message: `This category has ${productCount} product(s) associated with it. Please delete or reassign them first.`,
+        relatedCount: productCount
+      };
+    }
+
+    // Check for related sub-categories
+    const subCategoryCount = await this.getCategorySubCategoryCount(categoryId);
+    if (subCategoryCount > 0) {
+      return {
+        success: false,
+        message: `This category has ${subCategoryCount} sub-category(ies) associated with it. Please delete or reassign them first.`,
+        relatedCount: subCategoryCount
+      };
+    }
+
+    // If no related items, delete the category
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', categoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { success: true };
+  }
+
+  // Force delete with cascade (admin only)
+  static async forceDeleteCategory(categoryId: string): Promise<void> {
+    // Get all sub-categories
+    const { data: subCategories } = await supabase
+      .from('sub_categories')
+      .select('id')
+      .eq('category_id', categoryId);
+
+    // Delete all products in sub-categories
+    if (subCategories && subCategories.length > 0) {
+      const subCategoryIds = subCategories.map(sc => sc.id);
+      await supabase
+        .from('products')
+        .delete()
+        .in('sub_category_id', subCategoryIds);
+    }
+
+    // Delete products directly in this category
+    await supabase
+      .from('products')
+      .delete()
+      .eq('category_id', categoryId);
+
+    // Delete sub-categories
+    await supabase
+      .from('sub_categories')
+      .delete()
+      .eq('category_id', categoryId);
 
     // Delete the category
     const { error } = await supabase
       .from('categories')
       .delete()
-      .eq('id', id);
+      .eq('id', categoryId);
 
     if (error) {
       throw new Error(error.message);
     }
   }
+
 
   // Toggle category status
   static async toggleStatus(id: string): Promise<Category> {

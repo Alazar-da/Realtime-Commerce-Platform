@@ -56,8 +56,9 @@ export default function CustomerOrdersPage() {
       setUser(user);
 
       if (user) {
-        const userOrders = await OrderService.getUserOrders(user.id);
-        setOrders(userOrders);
+        const result = await OrderService.getUserOrders(user.id);
+        // Ensure orders is always an array
+        setOrders(Array.isArray(result) ? result : result.orders || []);
       }
     } catch (error) {
       console.error('Failed to load orders:', error);
@@ -82,8 +83,13 @@ export default function CustomerOrdersPage() {
   };
 
   const filteredOrders = (status: string) => {
-    if (status === 'all') return orders;
-    return orders.filter(order => order.status === status);
+    // Ensure orders is an array
+    const ordersArray = Array.isArray(orders) ? orders : [];
+    
+    if (status === 'all') {
+      return ordersArray;
+    }
+    return ordersArray.filter(order => order.status === status);
   };
 
   if (loading) {
@@ -116,7 +122,10 @@ export default function CustomerOrdersPage() {
     );
   }
 
-  if (orders.length === 0) {
+  // Ensure orders is an array before checking length
+  const ordersArray = Array.isArray(orders) ? orders : [];
+
+  if (ordersArray.length === 0) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center py-16">
@@ -150,72 +159,75 @@ export default function CustomerOrdersPage() {
           <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
         </TabsList>
 
-        {['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => (
-          <TabsContent key={status} value={status}>
-            <div className="space-y-4">
-              {filteredOrders(status).length === 0 ? (
-                <div className="text-center py-8 text-muted-foreground">
-                  No {status !== 'all' ? status : ''} orders found
-                </div>
-              ) : (
-                filteredOrders(status).map((order) => (
-                  <Card key={order.id} className="hover:shadow-lg transition-shadow">
-                    <CardContent className="p-6">
-                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-3">
-                            <h3 className="font-semibold">
-                              {order.order_number}
-                            </h3>
-                            {getStatusBadge(order.status)}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                            <span>{new Date(order.created_at).toLocaleDateString()}</span>
-                            <span>•</span>
-                            <span>{order.items?.length || 0} items</span>
-                            <span>•</span>
-                            <span className="font-medium text-foreground">
-                              ${order.total.toFixed(2)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-3">
-                          <div className="flex items-center gap-2">
-                            {getStatusIcon(order.status)}
-                            <span className="text-sm capitalize">{order.status}</span>
-                          </div>
-                          <Button asChild variant="outline" size="sm">
-                            <Link href={`/orders/${order.id}`}>
-                              <Eye className="h-4 w-4 mr-2" />
-                              View Details
-                            </Link>
-                          </Button>
-                        </div>
-                      </div>
-
-                      {/* Order Items Preview */}
-                      <div className="mt-4 pt-4 border-t">
-                        <div className="flex flex-wrap gap-2">
-                          {order.items?.slice(0, 3).map((item) => (
-                            <div key={item.id} className="flex items-center gap-2 text-sm bg-muted/30 px-3 py-1.5 rounded-lg">
-                              <span>{item.product_name}</span>
-                              <span className="text-muted-foreground">×{item.quantity}</span>
+        {['all', 'pending', 'processing', 'shipped', 'delivered', 'cancelled'].map((status) => {
+          const filtered = filteredOrders(status);
+          return (
+            <TabsContent key={status} value={status}>
+              <div className="space-y-4">
+                {filtered.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    No {status !== 'all' ? status : ''} orders found
+                  </div>
+                ) : (
+                  filtered.map((order) => (
+                    <Card key={order.id} className="hover:shadow-lg transition-shadow">
+                      <CardContent className="p-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-3">
+                              <h3 className="font-semibold">
+                                {order.order_number}
+                              </h3>
+                              {getStatusBadge(order.status)}
                             </div>
-                          ))}
-                          {order.items && order.items.length > 3 && (
-                            <span className="text-sm text-muted-foreground">
-                              +{order.items.length - 3} more
-                            </span>
-                          )}
+                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                              <span>{new Date(order.created_at).toLocaleDateString()}</span>
+                              <span>•</span>
+                              <span>{order.items?.length || 0} items</span>
+                              <span>•</span>
+                              <span className="font-medium text-foreground">
+                                ${order.total?.toFixed(2) || '0.00'}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              {getStatusIcon(order.status)}
+                              <span className="text-sm capitalize">{order.status}</span>
+                            </div>
+                            <Button asChild variant="outline" size="sm">
+                              <Link href={`/orders/${order.id}`}>
+                                <Eye className="h-4 w-4 mr-2" />
+                                View Details
+                              </Link>
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
-              )}
-            </div>
-          </TabsContent>
-        ))}
+
+                        {/* Order Items Preview */}
+                        <div className="mt-4 pt-4 border-t">
+                          <div className="flex flex-wrap gap-2">
+                            {order.items?.slice(0, 3).map((item) => (
+                              <div key={item.id} className="flex items-center gap-2 text-sm bg-muted/30 px-3 py-1.5 rounded-lg">
+                                <span>{item.product_name}</span>
+                                <span className="text-muted-foreground">×{item.quantity}</span>
+                              </div>
+                            ))}
+                            {order.items && order.items.length > 3 && (
+                              <span className="text-sm text-muted-foreground">
+                                +{order.items.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </TabsContent>
+          );
+        })}
       </Tabs>
     </div>
   );

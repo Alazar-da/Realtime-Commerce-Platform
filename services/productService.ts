@@ -451,6 +451,19 @@ export class ProductService {
     return product as Product;
   }
 
+      // Get product count
+  static async getProductCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return count || 0;
+  }
+
   // Delete product
   static async deleteProduct(id: string): Promise<void> {
     const product = await this.getProductById(id);
@@ -507,6 +520,7 @@ export class ProductService {
       stock_status: stockStatus
     });
   }
+
 
   // Bulk delete products
   static async bulkDeleteProducts(ids: string[]): Promise<void> {

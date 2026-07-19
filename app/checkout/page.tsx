@@ -1,4 +1,4 @@
-// app/(customer)/checkout/page.tsx (Updated with better error handling)
+// app/(customer)/checkout/page.tsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -11,11 +11,10 @@ import {
   Truck, 
   Shield, 
   CreditCard,
-  Banknote,
-  Wallet,
   Loader2,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Lock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,6 +26,13 @@ import { toast } from "react-hot-toast";
 import { createClient } from "@/lib/supabase/client";
 import { CartService, CartResponse } from "@/services/cartService";
 import { OrderService, CreateOrderDTO } from "@/services/orderService";
+import { StripeService } from "@/services/stripeService";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from '@stripe/react-stripe-js';
 
 interface ShippingAddress {
   full_name: string;
@@ -38,6 +44,158 @@ interface ShippingAddress {
   phone: string;
 }
 
+// Payment Form Component
+function PaymentForm({ 
+  onSuccess, 
+  onError,
+  amount,
+  clientSecret,
+  orderId
+}: { 
+  onSuccess: (paymentIntentId: string) => void;
+  onError: (error: string) => void;
+  amount: number;
+  clientSecret: string;
+  orderId: string;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>();
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle');
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    
+    if (paymentStatus === 'succeeded') {
+      window.location.href = `/orders/${orderId}`;
+      return;
+    }
+
+    setLoading(true);
+    setErrorMessage("");
+    setPaymentStatus('processing');
+
+    if (!stripe || !elements || !clientSecret) {
+      const msg = "Payment system is not ready. Please try again.";
+      setErrorMessage(msg);
+      onError(msg);
+      setLoading(false);
+      setPaymentStatus('failed');
+      return;
+    }
+
+    try {
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/checkout/success?orderId=${orderId}`,
+        },
+        redirect: "if_required",
+      });
+
+      if (error) {
+        console.error('Payment error:', error);
+        setErrorMessage(error.message || "Payment failed");
+        onError(error.message || "Payment failed");
+        setPaymentStatus('failed');
+        setLoading(false);
+        return;
+      }
+
+      if (paymentIntent?.status === "succeeded") {
+        setPaymentStatus('succeeded');
+        onSuccess(paymentIntent.id);
+      } else if (paymentIntent?.status === "requires_action") {
+        // 3D Secure authentication required - handled by Stripe
+        toast("Additional authentication required. Please follow the prompts.");
+      } else {
+        const msg = `Payment status: ${paymentIntent?.status || 'Unknown'}`;
+        setErrorMessage(msg);
+        onError(msg);
+        setPaymentStatus('failed');
+      }
+    } catch (err: any) {
+      console.error('Payment exception:', err);
+      const msg = err.message || "Payment failed";
+      setErrorMessage(msg);
+      onError(msg);
+      setPaymentStatus('failed');
+    }
+
+    setLoading(false);
+  };
+
+  // Show success state
+  if (paymentStatus === 'succeeded') {
+    return (
+      <div className="text-center py-6">
+        <CheckCircle className="h-10 w-10 text-green-500 mx-auto mb-3" />
+        <h4 className="font-semibold">Payment Successful!</h4>
+        <p className="text-sm text-muted-foreground">Your order is being processed.</p>
+      </div>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      {errorMessage && (
+        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg flex items-start gap-2">
+          <AlertCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+        </div>
+      )}
+
+      <div className="p-4 border rounded-lg bg-muted/20">
+        <PaymentElement />
+      </div>
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Lock className="h-3 w-3" />
+        <span>Your payment is secure and encrypted</span>
+      </div>
+
+      {paymentStatus === 'processing' && (
+        <div className="flex items-center gap-2 text-blue-600">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span className="text-sm">Processing your payment...</span>
+        </div>
+      )}
+
+      <Button 
+        type="submit" 
+        disabled={!stripe || loading || !clientSecret || paymentStatus === 'succeeded'}
+        className="w-full"
+        size="lg"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            Processing...
+          </>
+        ) : paymentStatus === 'succeeded' ? (
+          "Paid ✓"
+        ) : (
+          <>
+            <Lock className="h-4 w-4 mr-2" />
+            Pay ${amount.toFixed(2)}
+          </>
+        )}
+      </Button>
+
+      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">🧪 Test Cards</p>
+        <div className="text-xs space-y-0.5 text-blue-600 dark:text-blue-400">
+          <p>✅ Success: 4242 4242 4242 4242</p>
+          <p>🔒 3D Secure: 4000 0025 0000 3155</p>
+          <p className="text-muted-foreground">Expiry: 12/34 • CVC: 123</p>
+        </div>
+      </div>
+    </form>
+  );
+}
+
+// Main Checkout Page
 export default function CheckoutPage() {
   const router = useRouter();
   const supabase = createClient();
@@ -53,7 +211,7 @@ export default function CheckoutPage() {
     discount: 0,
     grandTotal: 0
   });
-  const [paymentMethod, setPaymentMethod] = useState<'credit_card' | 'paypal' | 'bank_transfer' | 'cash_on_delivery'>('credit_card');
+  const [paymentMethod, setPaymentMethod] = useState<'credit_card'>('credit_card');
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
     full_name: '',
     address: '',
@@ -65,7 +223,10 @@ export default function CheckoutPage() {
   });
   const [orderComplete, setOrderComplete] = useState(false);
   const [orderNumber, setOrderNumber] = useState('');
+  const [orderId, setOrderId] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [stripeClientSecret, setStripeClientSecret] = useState<string | null>(null);
+  const [showStripeForm, setShowStripeForm] = useState(false);
 
   useEffect(() => {
     fetchUserAndCart();
@@ -127,7 +288,7 @@ export default function CheckoutPage() {
     setShippingAddress(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmitOrder = async () => {
+  const initializePayment = async () => {
     // Validate shipping address
     const requiredFields = ['full_name', 'address', 'city', 'state', 'postal_code', 'country', 'phone'];
     const missingField = requiredFields.find(field => !shippingAddress[field as keyof ShippingAddress]);
@@ -137,29 +298,55 @@ export default function CheckoutPage() {
       return;
     }
 
-    setError(null);
-    setSubmitting(true);
-
     try {
+      setSubmitting(true);
+      
+      // Create order first
       const orderData: CreateOrderDTO = {
-        payment_method: paymentMethod,
+        payment_method: 'credit_card',
         shipping_address: shippingAddress,
-        notes: `Payment Method: ${paymentMethod.replace('_', ' ').toUpperCase()}`
+        notes: `Payment Method: Credit Card via Stripe`
       };
 
       const order = await OrderService.createOrder(user.id, orderData);
-      
+      setOrderId(order.id);
       setOrderNumber(order.order_number);
-      setOrderComplete(true);
-      toast.success('Order placed successfully!');
-    } catch (error: any) {
-      console.error('Error creating order:', error);
-      const errorMessage = error.message || 'Failed to create order. Please try again.';
-      setError(errorMessage);
-      toast.error(errorMessage);
+
+      // Create payment intent
+      const { clientSecret } = await StripeService.createPaymentIntent(order.total);
+      setStripeClientSecret(clientSecret);
+      setShowStripeForm(true);
+      setError(null);
+    } catch (error) {
+      console.error('Error initializing payment:', error);
+      setError(error instanceof Error ? error.message : 'Failed to initialize payment');
+      toast.error('Failed to initialize payment');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handlePaymentSuccess = async (paymentIntentId: string) => {
+    try {
+      // Update payment status
+      await OrderService.updatePaymentStatus(orderId, 'paid');
+      await OrderService.updateOrderStatus(orderId, 'processing', 'Payment confirmed, order processing');
+      
+      setOrderComplete(true);
+      toast.success('Order placed successfully!');
+      
+      // Clear payment state
+      setStripeClientSecret(null);
+      setShowStripeForm(false);
+    } catch (error: any) {
+      console.error('Error updating order:', error);
+      toast.error('Payment succeeded but failed to update order. Please contact support.');
+    }
+  };
+
+  const handlePaymentError = (errorMessage: string) => {
+    setError(errorMessage);
+    toast.error(errorMessage);
   };
 
   if (loading) {
@@ -193,7 +380,7 @@ export default function CheckoutPage() {
             </div>
             <div className="flex flex-wrap justify-center gap-4">
               <Button asChild>
-                <Link href={`/orders/${orderNumber}`}>View Order</Link>
+                <Link href={`/orders/${orderId}`}>View Order</Link>
               </Button>
               <Button asChild variant="outline">
                 <Link href="/products">Continue Shopping</Link>
@@ -335,57 +522,72 @@ export default function CheckoutPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <RadioGroup value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <RadioGroupItem value="credit_card" id="credit_card" />
-                    <Label htmlFor="credit_card" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <CreditCard className="h-5 w-5" />
-                      Credit Card
-                    </Label>
+              <div className="space-y-4">
+                <RadioGroup value={paymentMethod} onValueChange={(value: any) => setPaymentMethod(value)}>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <RadioGroupItem value="credit_card" id="credit_card" />
+                      <Label htmlFor="credit_card" className="flex items-center gap-2 cursor-pointer flex-1">
+                        <CreditCard className="h-5 w-5" />
+                        Credit / Debit Card
+                      </Label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <RadioGroupItem value="paypal" id="paypal" />
-                    <Label htmlFor="paypal" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <Wallet className="h-5 w-5" />
-                      PayPal
-                    </Label>
+                </RadioGroup>
+
+                {!showStripeForm && !submitting && (
+                  <Button 
+                    onClick={initializePayment}
+                    className="w-full"
+                    size="lg"
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Creating Order...
+                      </>
+                    ) : (
+                      <>
+                        <CreditCard className="h-4 w-4 mr-2" />
+                        Pay with Card - ${cart.grandTotal.toFixed(2)}
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {submitting && !showStripeForm && (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                    <span className="ml-2">Initializing payment...</span>
                   </div>
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <RadioGroupItem value="bank_transfer" id="bank_transfer" />
-                    <Label htmlFor="bank_transfer" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <Banknote className="h-5 w-5" />
-                      Bank Transfer
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <RadioGroupItem value="cash_on_delivery" id="cash_on_delivery" />
-                    <Label htmlFor="cash_on_delivery" className="flex items-center gap-2 cursor-pointer flex-1">
-                      <Package className="h-5 w-5" />
-                      Cash on Delivery
-                    </Label>
-                  </div>
-                </div>
-              </RadioGroup>
+                )}
+
+                {showStripeForm && stripeClientSecret && (
+                  <Elements 
+                    stripe={StripeService.getStripe()} 
+                    options={{ 
+                      clientSecret: stripeClientSecret,
+                      appearance: {
+                        theme: 'stripe',
+                        variables: {
+                          colorPrimary: '#2563eb',
+                        },
+                      },
+                    }}
+                  >
+                    <PaymentForm
+                      onSuccess={handlePaymentSuccess}
+                      onError={handlePaymentError}
+                      amount={cart.grandTotal}
+                      clientSecret={stripeClientSecret}
+                      orderId={orderId}
+                    />
+                  </Elements>
+                )}
+              </div>
             </CardContent>
           </Card>
-
-          {/* Place Order Button */}
-          <Button 
-            onClick={handleSubmitOrder} 
-            disabled={submitting}
-            size="lg"
-            className="w-full"
-          >
-            {submitting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Placing Order...
-              </>
-            ) : (
-              `Place Order - $${cart.grandTotal.toFixed(2)}`
-            )}
-          </Button>
         </div>
 
         {/* Order Summary */}
@@ -458,6 +660,13 @@ export default function CheckoutPage() {
                   Secure checkout
                 </div>
               </div>
+
+              {showStripeForm && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground border-t pt-4">
+                  <Lock className="h-3 w-3 text-green-500" />
+                  <span>Payment secured by Stripe</span>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>

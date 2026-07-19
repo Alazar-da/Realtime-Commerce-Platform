@@ -42,15 +42,20 @@ export default function SubCategoriesPage() {
   const [selectedSubCategories, setSelectedSubCategories] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingSubCategory, setEditingSubCategory] = useState<SubCategory | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
     message: string;
+     isWarning?: boolean,
+    isForceDelete?: boolean,
     onConfirm: () => void;
   }>({
     open: false,
     title: '',
     message: '',
+     isWarning: false,
+    isForceDelete: false,
     onConfirm: () => {}
   });
 
@@ -125,24 +130,52 @@ export default function SubCategoriesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    setConfirmDialog({
-      open: true,
-      title: 'Delete Sub-Category',
-      message: 'Are you sure you want to delete this sub-category? This action cannot be undone.',
-      onConfirm: async () => {
-        try {
-          await SubCategoryService.deleteSubCategory(id);
-          toast.success('Sub-category deleted successfully');
-          loadSubCategories();
-        } catch (error) {
-          toast.error('Failed to delete sub-category');
-          console.error(error);
-        } finally {
+  try {
+    const result = await SubCategoryService.deleteSubCategory(id);
+    
+    if (!result.success) {
+      // Show warning dialog with related count
+        setDeleteTargetId(id);
+      setConfirmDialog({
+        open: true,
+        title: 'Cannot Delete Sub-Category',
+        message: `${result.message}`,
+        isWarning: true,
+        onConfirm: () => {
           setConfirmDialog(prev => ({ ...prev, open: false }));
         }
+      });
+      return;
+    }
+
+    toast.success('Sub-category deleted successfully');
+    loadSubCategories();
+  } catch (error) {
+    toast.error('Failed to delete sub-category');
+    console.error(error);
+  }
+};
+
+const handleForceDelete = async (id: string) => {
+  setConfirmDialog({
+    open: true,
+    title: '⚠️ Delete Sub-Category and All Products',
+    message: 'This will permanently delete this sub-category and all associated products. This action cannot be undone.',
+    isWarning: true,
+    onConfirm: async () => {
+      try {
+        await SubCategoryService.forceDeleteSubCategory(id);
+        toast.success('Sub-category and all products deleted successfully');
+        loadSubCategories();
+      } catch (error) {
+        toast.error('Failed to delete sub-category');
+        console.error(error);
+      } finally {
+        setConfirmDialog(prev => ({ ...prev, open: false }));
       }
-    });
-  };
+    }
+  });
+};
 
   const handleBulkDelete = async () => {
     if (selectedSubCategories.length === 0) return;
@@ -265,6 +298,7 @@ export default function SubCategoriesPage() {
             setModalOpen(true);
           }}
           onDelete={handleDelete}
+          onForceDelete={handleForceDelete}
           onToggleStatus={handleToggleStatus}
         />
       ) : (
@@ -277,6 +311,7 @@ export default function SubCategoriesPage() {
             setModalOpen(true);
           }}
           onDelete={handleDelete}
+          onForceDelete={handleForceDelete}
           onToggleStatus={handleToggleStatus}
         />
       )}
@@ -365,8 +400,18 @@ export default function SubCategoriesPage() {
         open={confirmDialog.open}
         title={confirmDialog.title}
         message={confirmDialog.message}
+        isWarning={confirmDialog.isWarning}
+        isForceDelete={confirmDialog.isForceDelete}
         onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+       onCancel={() => {
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+          setDeleteTargetId(null);
+        }}
+         onForceDelete={() => {
+          if (deleteTargetId) {
+            handleForceDelete(deleteTargetId);
+          }
+        }}
       />
     </div>
   );

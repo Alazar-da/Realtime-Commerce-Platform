@@ -83,7 +83,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl">Record Sale</DialogTitle>
         </DialogHeader>
@@ -99,7 +99,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
                   <Package className="h-6 w-6 text-gray-400" />
                 )}
               </div>
-              <div>
+              <div className="flex flex-col gap-1">
                 <h4 className="font-semibold">{product.name}</h4>
                 <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
                 <div className="flex items-center gap-2 mt-1">
@@ -113,7 +113,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
           </div>
 
           {/* Quantity */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="quantity">Quantity *</Label>
             <div className="flex items-center gap-2 mt-1">
               <Button
@@ -157,7 +157,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
 
           {/* Customer Info */}
           <div className="grid grid-cols-2 gap-3">
-            <div>
+            <div className="flex flex-col gap-1">
               <Label htmlFor="customerName">Customer Name</Label>
               <Input
                 id="customerName"
@@ -177,7 +177,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
             </div>
           </div>
 
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="customerEmail">Email</Label>
             <Input
               id="customerEmail"
@@ -189,7 +189,7 @@ export function SaleModal({ open, onClose, onSubmit, product }: SaleModalProps) 
           </div>
 
           {/* Notes */}
-          <div>
+          <div className="flex flex-col gap-1">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"

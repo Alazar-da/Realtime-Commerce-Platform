@@ -239,26 +239,71 @@ export class SubCategoryService {
     return subCategory as SubCategory;
   }
 
-  // Delete sub-category
-  static async deleteSubCategory(id: string): Promise<void> {
-    // Get the sub-category to get the image URL
-    const subCategory = await this.getSubCategoryById(id);
-    
-    // Delete the image from storage if it exists
-    if (subCategory.image_url) {
-      const fileName = subCategory.image_url.split('/').pop();
-      if (fileName) {
-        await supabase.storage
-          .from('categories')
-          .remove([fileName]);
-      }
+  // Get sub-category count
+  static async getSubCategoryCount(): Promise<number> {
+    const { count, error } = await supabase
+      .from('sub_categories')
+      .select('*', { count: 'exact', head: true });
+
+    if (error) {
+      throw new Error(error.message);
     }
+
+    return count || 0;
+  }
+
+// Check if sub-category has related products
+  static async getSubCategoryProductCount(subCategoryId: string): Promise<number> {
+    const { count, error } = await supabase
+      .from('products')
+      .select('*', { count: 'exact', head: true })
+      .eq('sub_category_id', subCategoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return count || 0;
+  }
+
+  // Delete sub-category with check
+  static async deleteSubCategory(subCategoryId: string): Promise<{ success: boolean; message?: string; relatedCount?: number }> {
+    // Check for related products
+    const productCount = await this.getSubCategoryProductCount(subCategoryId);
+    if (productCount > 0) {
+      return {
+        success: false,
+        message: `This sub-category has ${productCount} product(s) associated with it. Please delete or reassign them first.`,
+        relatedCount: productCount
+      };
+    }
+
+    // If no related items, delete the sub-category
+    const { error } = await supabase
+      .from('sub_categories')
+      .delete()
+      .eq('id', subCategoryId);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return { success: true };
+  }
+
+  // Force delete sub-category with cascade
+  static async forceDeleteSubCategory(subCategoryId: string): Promise<void> {
+    // Delete all products in this sub-category
+    await supabase
+      .from('products')
+      .delete()
+      .eq('sub_category_id', subCategoryId);
 
     // Delete the sub-category
     const { error } = await supabase
       .from('sub_categories')
       .delete()
-      .eq('id', id);
+      .eq('id', subCategoryId);
 
     if (error) {
       throw new Error(error.message);

@@ -1,4 +1,5 @@
-// app/dashboard/categories/page.tsx
+// app/dashboard/categories/page.tsx (Updated)
+
 "use client";
 
 import { useState, useEffect } from "react";
@@ -38,15 +39,21 @@ export default function CategoriesPage() {
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
     message: string;
+    isWarning?: boolean;
+    isForceDelete?: boolean;
     onConfirm: () => void;
+    onForceDelete?: () => void;
   }>({
     open: false,
     title: '',
     message: '',
+    isWarning: false,
+    isForceDelete: false,
     onConfirm: () => {}
   });
 
@@ -107,14 +114,49 @@ export default function CategoriesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    try {
+      const result = await CategoryService.deleteCategory(id);
+      
+      if (!result.success) {
+        // Show warning dialog with Force Delete option
+        setDeleteTargetId(id);
+        setConfirmDialog({
+          open: true,
+          title: 'Cannot Delete Category',
+          message: `${result.message}`,
+          isWarning: true,
+          isForceDelete: true, // IMPORTANT: Set this to true to show force delete option
+          onConfirm: () => {
+            // User clicks "Okay, I'll handle it myself"
+            setConfirmDialog(prev => ({ ...prev, open: false }));
+          },
+          onForceDelete: () => {
+            // User clicks "Force Delete All"
+            handleForceDelete(id);
+          }
+        });
+        return;
+      }
+
+      toast.success('Category deleted successfully');
+      loadCategories();
+    } catch (error) {
+      toast.error('Failed to delete category');
+      console.error(error);
+    }
+  };
+
+  const handleForceDelete = async (id: string) => {
     setConfirmDialog({
       open: true,
-      title: 'Delete Category',
-      message: 'Are you sure you want to delete this category? This action cannot be undone.',
+      title: '⚠️ Delete Category and All Related Data',
+      message: 'This will permanently delete this category, all its sub-categories, and all associated products. This action cannot be undone. Are you sure you want to proceed?',
+      isWarning: true,
+      isForceDelete: false, // Set to false for the final confirmation
       onConfirm: async () => {
         try {
-          await CategoryService.deleteCategory(id);
-          toast.success('Category deleted successfully');
+          await CategoryService.forceDeleteCategory(id);
+          toast.success('Category and all related data deleted successfully');
           loadCategories();
         } catch (error) {
           toast.error('Failed to delete category');
@@ -133,6 +175,8 @@ export default function CategoriesPage() {
       open: true,
       title: 'Delete Categories',
       message: `Are you sure you want to delete ${selectedCategories.length} categories? This action cannot be undone.`,
+      isWarning: true,
+      isForceDelete: false,
       onConfirm: async () => {
         try {
           await CategoryService.bulkDeleteCategories(selectedCategories);
@@ -234,6 +278,7 @@ export default function CategoriesPage() {
             setModalOpen(true);
           }}
           onDelete={handleDelete}
+          onForceDelete={handleForceDelete}
           onToggleStatus={handleToggleStatus}
         />
       ) : (
@@ -246,6 +291,7 @@ export default function CategoriesPage() {
             setModalOpen(true);
           }}
           onDelete={handleDelete}
+          onForceDelete={handleForceDelete}
           onToggleStatus={handleToggleStatus}
         />
       )}
@@ -333,8 +379,18 @@ export default function CategoriesPage() {
         open={confirmDialog.open}
         title={confirmDialog.title}
         message={confirmDialog.message}
+        isWarning={confirmDialog.isWarning}
+        isForceDelete={confirmDialog.isForceDelete}
         onConfirm={confirmDialog.onConfirm}
-        onCancel={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onCancel={() => {
+          setConfirmDialog(prev => ({ ...prev, open: false }));
+          setDeleteTargetId(null);
+        }}
+        onForceDelete={() => {
+          if (deleteTargetId) {
+            handleForceDelete(deleteTargetId);
+          }
+        }}
       />
     </div>
   );
