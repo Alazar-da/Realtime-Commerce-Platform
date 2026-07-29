@@ -66,7 +66,7 @@ export class SaleService {
     // Deduct stock from product
     const { data: product } = await supabase
       .from('products')
-      .select('stock_quantity')
+      .select('stock_quantity, sales_count')
       .eq('id', data.product_id)
       .single();
 
@@ -79,7 +79,7 @@ export class SaleService {
         .update({ 
           stock_quantity: newStock,
           stock_status: stockStatus,
-          sales_count: (product.sales_count || 0) + data.quantity
+          sales_count: (product?.sales_count || 0) + data.quantity
         })
         .eq('id', data.product_id);
     }
@@ -162,7 +162,7 @@ export class SaleService {
     const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
 
     // Top products
-    const productMap = new Map<string, { name: string; total_sold: number; total_revenue: number }>();
+    const productMap = new Map<string, { product_name: string; total_sold: number; total_revenue: number }>();
     for (const sale of sales) {
       const key = sale.product_id;
       const existing = productMap.get(key);
@@ -171,7 +171,7 @@ export class SaleService {
         existing.total_revenue += sale.total;
       } else {
         productMap.set(key, {
-          name: sale.product?.name || 'Unknown',
+          product_name: sale.product?.name || 'Unknown',
           total_sold: sale.quantity,
           total_revenue: sale.total
         });

@@ -11,8 +11,8 @@ export interface DashboardStats {
   pendingOrders: number;
   lowStockProducts: number;
   outOfStockProducts: number;
-  recentOrders: RecentOrder[];
   recentUsers: RecentUser[];
+  recentOrders: RecentOrder[];
   salesByDay: { date: string; total: number; count: number }[];
   topProducts: { id: string; name: string; sales: number; revenue: number }[];
   categoryDistribution: { name: string; count: number }[];
@@ -118,7 +118,7 @@ export class DashboardService {
       .limit(100);
 
     const productSales = new Map();
-    orderItems?.forEach(item => {
+    orderItems?.forEach((item:any) => {
       if (productSales.has(item.product_id)) {
         const existing = productSales.get(item.product_id);
         productSales.set(item.product_id, {
@@ -174,8 +174,8 @@ export class DashboardService {
       pendingOrders,
       lowStockProducts,
       outOfStockProducts,
-      recentOrders: recentOrders || [],
       recentUsers: recentUsers || [],
+      recentOrders: (recentOrders as unknown as RecentOrder[]) || [],
       salesByDay: salesByDayArray,
       topProducts,
       categoryDistribution: categoryCounts

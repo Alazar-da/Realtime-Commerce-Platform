@@ -164,7 +164,7 @@ export function OrderDetail({ order }: OrderDetailProps) {
                 <div key={history.id} className="flex items-start gap-3">
                   <div className="relative">
                     <div className="w-2 h-2 rounded-full bg-primary mt-1.5" />
-                    {index < order.status_history.length - 1 && (
+                    {index < (order.status_history?.length ?? 0) - 1 && (
                       <div className="absolute top-3 left-1 w-0.5 h-full bg-border" />
                     )}
                   </div>

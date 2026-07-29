@@ -329,7 +329,7 @@ export default function DashboardPage() {
                     </TableCell>
                   </TableRow>
                 ) : (
-                  stats.recentOrders.map((order) => (
+                  stats.recentOrders.map((order:any) => (
                     <TableRow key={order.id}>
                       <TableCell className="font-medium">
                         <Link href={`/dashboard/orders/${order.id}`} className="hover:text-primary">
