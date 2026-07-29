@@ -164,7 +164,7 @@ function PaymentForm({
 
       <Button 
         type="submit" 
-        disabled={!stripe || loading || !clientSecret || paymentStatus === 'succeeded'}
+        disabled={!stripe || loading || !clientSecret}
         className="w-full"
         size="lg"
       >
@@ -173,8 +173,6 @@ function PaymentForm({
             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
             Processing...
           </>
-        ) : paymentStatus === 'succeeded' ? (
-          "Paid ✓"
         ) : (
           <>
             <Lock className="h-4 w-4 mr-2" />
@@ -313,7 +311,7 @@ export default function CheckoutPage() {
       setOrderNumber(order.order_number);
 
       // Create payment intent
-      const { clientSecret } = await StripeService.createPaymentIntent(order.total);
+      const { clientSecret } = await StripeService.createPaymentIntent(order.id,order.total);
       setStripeClientSecret(clientSecret);
       setShowStripeForm(true);
       setError(null);
