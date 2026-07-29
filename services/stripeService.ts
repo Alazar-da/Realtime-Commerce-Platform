@@ -5,17 +5,22 @@ const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!
 
 export class StripeService {
   // Create a payment intent
-  static async createPaymentIntent(amount: number, currency: string = 'usd'): Promise<{ clientSecret: string; paymentIntentId: string }> {
+  static async createPaymentIntent(
+    orderId: string,
+    amount: number,
+    currency = "usd"
+): Promise<{ clientSecret: string; paymentIntentId: string }> {
     try {
       const response = await fetch('/api/create-payment-intent', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          amount: Math.round(amount * 100), // Convert to cents
-          currency,
-        }),
+       body: JSON.stringify({
+    amount: Math.round(amount * 100),
+    currency,
+    orderId,
+}),
       });
 
       if (!response.ok) {

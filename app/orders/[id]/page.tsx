@@ -52,14 +52,14 @@ const statusColors = {
 };
 
 // Payment Form Component for Dialog - Fixed
-function PaymentForm({ 
-  onSuccess, 
+function PaymentForm({
+  onSuccess,
   onError,
   amount,
   clientSecret,
   orderId,
-  orderNumber
-}: { 
+  orderNumber,
+}: {
   onSuccess: (paymentIntentId: string) => void;
   onError: (error: string) => void;
   amount: number;
@@ -69,94 +69,116 @@ function PaymentForm({
 }) {
   const stripe = useStripe();
   const elements = useElements();
+
   const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState<string>();
-  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'succeeded' | 'failed'>('idle');
+  const [errorMessage, setErrorMessage] = useState<string>("");
+  const [paymentStatus, setPaymentStatus] = useState<
+    "idle" | "processing" | "succeeded" | "failed"
+  >("idle");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!stripe || !elements) {
-      toast.error('Payment system not ready. Please try again.');
+      toast.error("Stripe has not loaded yet.");
       return;
     }
 
-    // Prevent multiple submissions
-    if (loading) {
-      return;
-    }
+    if (loading) return;
 
     setLoading(true);
     setErrorMessage("");
-    setPaymentStatus('processing');
+    setPaymentStatus("processing");
 
     try {
-      // ✅ STEP 1: Call elements.submit() to validate and collect payment details
+      // Validate payment fields
       const { error: submitError } = await elements.submit();
-      
+
       if (submitError) {
-        console.error('Elements submit error:', submitError);
-        setErrorMessage(submitError.message || "Please check your payment details");
-        onError(submitError.message || "Please check your payment details");
-        setPaymentStatus('failed');
-        setLoading(false);
+        setPaymentStatus("failed");
+        setErrorMessage(submitError.message ?? "Invalid payment details.");
+        onError(submitError.message ?? "Invalid payment details.");
         return;
       }
 
-      // ✅ STEP 2: Create the PaymentIntent and get clientSecret
-      // Note: clientSecret is already passed as a prop, but if you need to create it here:
-      // const res = await fetch("/api/create-payment-intent", {
-      //   method: "POST",
-      //   headers: { "Content-Type": "application/json" },
-      //   body: JSON.stringify({
-      //     amount: Math.round(amount * 100),
-      //     orderId: orderId,
-      //   }),
-      // });
-      // const data = await res.json();
-      // const clientSecret = data.clientSecret;
-
-      // ✅ STEP 3: Confirm the payment using the clientSecret
+      // Confirm payment
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         clientSecret,
         confirmParams: {
           return_url: `${window.location.origin}/orders/${orderId}`,
         },
-        redirect: 'if_required',
+        redirect: "if_required",
       });
 
       if (error) {
-        console.error('Payment confirmation error:', error);
-        setErrorMessage(error.message || "Payment failed");
-        onError(error.message || "Payment failed");
-        setPaymentStatus('failed');
-        setLoading(false);
+        console.error(error);
+
+        setPaymentStatus("failed");
+        setErrorMessage(error.message ?? "Payment failed.");
+
+        onError(error.message ?? "Payment failed.");
         return;
       }
 
-      if (paymentIntent?.status === "succeeded") {
-        setPaymentStatus('succeeded');
-        // Update payment status in your backend
-        await OrderService.updatePaymentStatus(orderId, 'paid');
-        await OrderService.updateOrderStatus(orderId, 'processing', 'Payment confirmed, order processing');
-        toast.success('Payment successful! Order is now being processed.');
-        onSuccess(paymentIntent.id);
-      } else if (paymentIntent?.status === "requires_action") {
-        // 3D Secure authentication required - handled by Stripe
-        toast("Additional authentication required. Please follow the prompts.");
-      } else {
-        const msg = `Payment status: ${paymentIntent?.status || 'Unknown'}`;
-        setErrorMessage(msg);
-        onError(msg);
-        setPaymentStatus('failed');
+      switch (paymentIntent?.status) {
+        case "succeeded":
+          setPaymentStatus("succeeded");
+          console.log("SUCCESS CASE");
+          toast.success(
+            "Payment successful. Your order will be updated shortly."
+          );
+
+          // DO NOT update database here.
+          // Stripe webhook will update payment_status and order_status.
+          onSuccess(paymentIntent.id);
+          break;
+
+        case "processing":
+          setPaymentStatus("processing");
+
+          toast(
+            "Your payment is processing. We'll update your order automatically."
+          );
+          break;
+
+        case "requires_action":
+          toast(
+            "Additional authentication is required. Please complete the verification."
+          );
+          break;
+
+        case "requires_payment_method":
+          setPaymentStatus("failed");
+
+          setErrorMessage(
+            "Your payment could not be completed. Please try another payment method."
+          );
+
+          onError(
+            "Your payment could not be completed. Please try another payment method."
+          );
+          break;
+
+        default:
+          setPaymentStatus("failed");
+
+          const msg = `Unexpected payment status: ${
+            paymentIntent?.status ?? "unknown"
+          }`;
+
+          setErrorMessage(msg);
+          onError(msg);
       }
-    } catch (error) {
-      console.error('Payment exception:', error);
-      const msg = error instanceof Error ? error.message : "Payment failed";
+    } catch (err) {
+      console.error(err);
+
+      const msg =
+        err instanceof Error ? err.message : "Something went wrong.";
+
+      setPaymentStatus("failed");
       setErrorMessage(msg);
       onError(msg);
-      setPaymentStatus('failed');
     } finally {
       setLoading(false);
     }
@@ -165,78 +187,79 @@ function PaymentForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       {/* Order Summary */}
-      <div className="bg-muted/30 rounded-lg p-4">
+      <div className="rounded-lg bg-muted/30 p-4">
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Order</span>
           <span className="font-medium">{orderNumber}</span>
         </div>
-        <div className="flex justify-between text-sm">
+
+        <div className="mt-2 flex justify-between text-sm">
           <span className="text-muted-foreground">Amount</span>
-          <span className="font-bold text-primary">${amount.toFixed(2)}</span>
+          <span className="font-bold text-primary">
+            ${amount.toFixed(2)}
+          </span>
         </div>
       </div>
 
-      {/* Error Message */}
+      {/* Error */}
       {errorMessage && (
-        <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 rounded-lg flex items-start gap-2">
-          <XCircle className="h-4 w-4 text-red-500 mt-0.5 flex-shrink-0" />
-          <p className="text-sm text-red-600 dark:text-red-400">{errorMessage}</p>
+        <div className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 dark:bg-red-950/20">
+          <XCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-500" />
+          <p className="text-sm text-red-600 dark:text-red-400">
+            {errorMessage}
+          </p>
         </div>
       )}
 
-      {/* Payment Element */}
-      <div className="p-4 border rounded-lg bg-muted/20">
+      {/* Stripe Payment Element */}
+      <div className="rounded-lg border bg-muted/20 p-4">
         <PaymentElement />
       </div>
 
-      {/* Secure Badge */}
+      {/* Secure Notice */}
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Lock className="h-3 w-3" />
-        <span>Your payment is secure and encrypted</span>
+        <span>Payments are securely processed by Stripe.</span>
       </div>
 
-      {/* Processing State */}
-      {paymentStatus === 'processing' && (
+      {/* Processing */}
+      {paymentStatus === "processing" && (
         <div className="flex items-center gap-2 text-blue-600">
           <Loader2 className="h-4 w-4 animate-spin" />
-          <span className="text-sm">Processing your payment...</span>
+          <span className="text-sm">
+            Processing your payment...
+          </span>
         </div>
       )}
 
-      {/* Submit Button */}
-      <Button 
-        type="submit" 
-        disabled={!stripe || loading || paymentStatus === 'succeeded'}
-        className="w-full"
+      <Button
+        type="submit"
         size="lg"
+        className="w-full"
+        disabled={
+          !stripe ||
+          !elements ||
+          loading ||
+          paymentStatus === "succeeded"
+        }
       >
         {loading ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Processing...
           </>
-        ) : paymentStatus === 'succeeded' ? (
+        ) : paymentStatus === "succeeded" ? (
           <>
-            <CheckCircle className="h-4 w-4 mr-2" />
-            Paid ✓
+            <CheckCircle className="mr-2 h-4 w-4" />
+            Payment Successful
           </>
         ) : (
           <>
-            <CreditCard className="h-4 w-4 mr-2" />
+            <CreditCard className="mr-2 h-4 w-4" />
             Pay ${amount.toFixed(2)}
           </>
         )}
       </Button>
-
-      {/* Test Cards Info */}
-      <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-        <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 mb-1">🧪 Test Cards</p>
-        <div className="text-xs space-y-0.5 text-blue-600 dark:text-blue-400">
-          <p>✅ Success: 4242 4242 4242 4242</p>
-          <p>🔒 3D Secure: 4000 0025 0000 3155</p>
-          <p className="text-muted-foreground">Expiry: 12/34 • CVC: 123</p>
-        </div>
-      </div>
     </form>
   );
 }
@@ -320,7 +343,11 @@ export default function CustomerOrderDetailPage() {
       setPaymentError(null);
       
       // Create payment intent
-      const { clientSecret } = await StripeService.createPaymentIntent(order.total);
+const { clientSecret } =
+await StripeService.createPaymentIntent(
+    order.id,
+    order.total
+);
       setStripeClientSecret(clientSecret);
       setPaymentDialogOpen(true);
     } catch (error) {
@@ -332,12 +359,18 @@ export default function CustomerOrderDetailPage() {
     }
   };
 
-  const handlePaymentSuccess = async (paymentIntentId: string) => {
-    setPaymentDialogOpen(false);
-    setStripeClientSecret(null);
-    // Refresh order data
+const handlePaymentSuccess = async (paymentIntentId: string) => {
+  console.log("PaymentIntent:", paymentIntentId);
+
+  setPaymentDialogOpen(false);
+  setStripeClientSecret(null);
+
+  // Give the Stripe webhook time to update the database
+  toast.success('Payment successful! Order is being processed.');
+  setTimeout(async () => {
     await fetchOrder();
-    toast.success('Payment successful! Order is being processed.');
+  }, 1500);
+    
   };
 
   const handlePaymentError = (error: string) => {
